@@ -1,0 +1,17 @@
+﻿namespace Ecom.IdentityServer.Models
+{
+    public enum AuthEnum
+    {
+        AllowNuxtCMS,
+        EcommerceIdentityCMS
+    }
+    public enum ClaimCustom
+    {
+        custom_user_payload,
+        custom_user_id,
+        custom_email,
+        role,
+        wid,
+        scope
+    }
+}

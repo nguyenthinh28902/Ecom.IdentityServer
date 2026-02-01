@@ -1,0 +1,6 @@
+@EcommerceIdentityServerCMS_HostAddress = http://localhost:5062
+
+GET {{EcommerceIdentityServerCMS_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

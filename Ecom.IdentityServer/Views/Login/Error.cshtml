@@ -1,0 +1,50 @@
+﻿@using Ecom.IdentityServer.Models
+@using EcommerceIdentityServerCMS.Models
+@model ErrorViewModel
+@{
+    Layout = null;
+    ViewData["Title"] = "Lỗi xác thực";
+}
+<script src="https://cdn.tailwindcss.com"></script>
+
+<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#fee2e2] to-[#ffffff] font-sans text-[#2c3e50]">
+    <div class="bg-white p-10 rounded-[40px] shadow-2xl w-full max-w-[500px] text-center border border-white">
+
+        <div class="inline-flex items-center justify-center w-20 h-20 bg-red-100 text-red-500 rounded-full mb-6">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+        </div>
+
+        <h1 class="text-red-500 text-3xl font-extrabold mb-2 tracking-tight">Rất tiếc!</h1>
+        <p class="text-gray-400 italic mb-8">Đã xảy ra lỗi trong quá trình xác thực</p>
+
+        <div class="bg-red-50 border border-red-100 rounded-3xl p-8 mb-6 text-left">
+            <p class="text-red-700 font-bold mb-2">Chi tiết lỗi:</p>
+            <div class="text-sm text-red-600 bg-white/50 p-4 rounded-xl border border-red-100">
+                @if (Model?.Error != null)
+                {
+                    <span class="block font-mono">@Model.Error.Error</span>
+                    <span class="block mt-1 opacity-80">@Model.Error.ErrorDescription</span>
+                }
+                else
+                {
+                    <span>Yêu cầu không hợp lệ hoặc đã hết hạn.</span>
+                }
+            </div>
+        </div>
+
+        <div class="space-y-3">
+            <a href="@Url.Action("Index", "Login")" class="block w-full bg-[#42d392] hover:bg-[#00c171] text-white font-bold py-4 rounded-xl transition duration-300 shadow-lg shadow-green-100">
+                Thử đăng nhập lại
+            </a>
+            <a href="/" class="block w-full text-gray-400 hover:text-gray-600 text-sm font-medium transition">
+                Quay lại trang chủ
+            </a>
+        </div>
+
+        <p class="text-[10px] text-gray-400 font-bold tracking-widest uppercase mt-8">
+            © 2026 Ecommerce CMS - Support Team
+        </p>
+    </div>
+</div>
