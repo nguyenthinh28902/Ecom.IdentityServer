@@ -1,4 +1,5 @@
 ﻿using Ecom.IdentityServer.Models.Settings;
+using Ecom.IdentityServer.Services.Interfaces;
 using Ecom.IdentityServer.Services.Services;
 using Microsoft.EntityFrameworkCore;
 using System.Reflection;
@@ -53,6 +54,8 @@ public static class AuthenticationIdentityServer
         })
         .AddDeveloperSigningCredential()
         .AddProfileService<GatewayUserProfileService>();
+
+        services.AddScoped<IClientService, ClientService>();
 
         return services;
     }

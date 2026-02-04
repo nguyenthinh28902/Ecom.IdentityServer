@@ -25,6 +25,7 @@ namespace Ecom.IdentityServer.Services.Services
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly IDistributedCache _cache;
         private readonly ServiceAuthOptions _idenityServiceAuthOptions;
+        private readonly IClientService _clientService;
 
         private readonly ILogger<AuthService> _logger;
         public AuthService(HttpClient httpClient,
@@ -33,7 +34,8 @@ namespace Ecom.IdentityServer.Services.Services
             ILogger<AuthService> logger, IOptions<JwtSettings> jwtSettings,
             IHttpContextAccessor httpContextAccessor,
             IDistributedCache cache,
-            IOptions<ServiceAuthOptions> options)
+            IOptions<ServiceAuthOptions> options,
+            IClientService clientService)
         {
             _configuration = configuration;
             _httpClient = httpClient;
@@ -43,6 +45,7 @@ namespace Ecom.IdentityServer.Services.Services
             _httpContextAccessor = httpContextAccessor;
             _cache = cache;
             _idenityServiceAuthOptions = options.Value;
+            _clientService = clientService;
         }
 
         public async Task<SignInResponseDto?> AuthenticateInternal(SignInViewModel signInViewModel)
@@ -157,7 +160,7 @@ namespace Ecom.IdentityServer.Services.Services
             var appName = httpContext.Request.Headers["X-App-Name"].ToString();
             if (string.IsNullOrEmpty(appName))
                 throw new UnauthorizedException("Thiếu X-App-Name");
-            var serviceAuthOptions = BuildAuthOptions(exchangeRequest);
+            var serviceAuthOptions = await BuildAuthOptions(exchangeRequest);
 
 
             // 🔥 Exchange authorization_code → access_token (IdentityServer)
@@ -173,29 +176,44 @@ namespace Ecom.IdentityServer.Services.Services
                 "Thông tin token được cấp phát thành công"
             );
         }
-        public ServiceAuthOptions BuildAuthOptions(ExchangeRequest request)
+        /// <summary>
+        /// lấy ClientId và ClientSecret để dùng
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        /// <exception cref="UnauthorizedException"></exception>
+        private async Task<ServiceAuthOptions> BuildAuthOptions(ExchangeRequest request)
         {
             var httpContext = _httpContextAccessor.HttpContext
                 ?? throw new UnauthorizedException("Không tìm thấy ngữ cảnh HTTP.");
 
-            // 1. Lấy thông tin từ Basic Auth Header
+            // 1. Lấy ClientId và ClientSecret từ Basic Auth Header
             var (clientId, clientSecret) = BasicAuthHelper.GetCredentials(httpContext.Request);
 
-            // 2. Lấy thông tin từ Custom Header (như X-App-Name đã bàn trước đó) nếu cần mapping ServiceName
-            var serviceName = httpContext.Request.Headers["X-App-Name"].ToString();
+            if (string.IsNullOrEmpty(clientId))
+            {
+                throw new UnauthorizedException("ClientId không hợp lệ trong Header.");
+            }
 
-            // 3. Khởi tạo và trả về model ServiceAuthOptions
+            // 2. Lấy danh sách Scope được phép từ Database thay vì đọc từ Client hay Config
+            // Điều này đảm bảo tính bảo mật tuyệt đối theo đúng cấu hình hệ thống.
+            var allowedScopes = await _clientService.GetAllowedScopesAsync(clientId);
+
+            if (string.IsNullOrEmpty(allowedScopes))
+            {
+                _logger.LogWarning("Client {ClientId} không có bất kỳ Scope nào được cấu hình trong DB.", clientId);
+                // Bạn có thể mặc định cấp openid profile hoặc báo lỗi tùy logic
+                allowedScopes = "openid profile";
+            }
+
+
+            _logger.LogInformation("Building AuthOptions for Client: {ClientId}, Scopes: {Scopes}", clientId, allowedScopes);
+
             return new ServiceAuthOptions {
-                ServiceName = string.IsNullOrEmpty(serviceName) ? "UnknownService" : serviceName,
-                ClientId = clientId ?? string.Empty,
+                ClientId = clientId,
                 ClientSecret = clientSecret ?? string.Empty,
-                // Dữ liệu từ Body (ExchangeRequest)
-                GrantType = "authorization_code", // Mặc định cho luồng exchange code
-                Scope = "openid profile offline_access", // Bạn có thể bốc từ config hoặc DB dựa trên ClientId
-
-                /* Lưu ý: RedirectUri từ ExchangeRequest thường dùng để so khớp (Validation),
-                   không nằm trong model ServiceAuthOptions ban đầu của bạn nhưng rất quan trọng.
-                */
+                GrantType = "authorization_code",
+                Scope = allowedScopes // Gán chuỗi Scope vừa lấy từ DB
             };
         }
 
