@@ -2,9 +2,9 @@
 {
     public enum ServiceAuth
     {
-        APIGatewayCMSService,
+        APIGatewayWebService,
         IdentityServer,
-        cms_admin_client
+        ecom_web_client
     }
 
     public enum ExpireTimeSpanSignIn

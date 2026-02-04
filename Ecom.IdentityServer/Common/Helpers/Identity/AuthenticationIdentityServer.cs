@@ -1,4 +1,5 @@
-﻿using Ecom.IdentityServer.Services.Services;
+﻿using Ecom.IdentityServer.Models.Settings;
+using Ecom.IdentityServer.Services.Services;
 using Microsoft.EntityFrameworkCore;
 using System.Reflection;
 
@@ -7,12 +8,12 @@ public static class AuthenticationIdentityServer
     public static IServiceCollection AddAuthenticationIdentityServer(this IServiceCollection services, IConfiguration configuration)
     {
         var migrationsAssembly = typeof(AuthenticationIdentityServer).GetTypeInfo().Assembly.GetName().Name;
-        var connectionString = configuration.GetConnectionString("EcomCMS_IdentityServer_DB");
+        var connectionString = configuration.GetConnectionString("EcomWeb_IdentityServer_DB");
 
-        var EcommerceMVCCMS = configuration["EcommerceMVCCMS:BaseUrl"];
+        var EcommerceWeb = configuration["EcommerceWeb:BaseUrl"];
         var RedisConnectionString = configuration["RedisConnection:RedisConnectionString"];
         var InstanceName = configuration["RedisConnection:InstanceName"];
-
+        var gatewayUrl = ConfigBaseUrl.GetEcomApiGatewayBaseUrl(configuration);
         // 1. Cấu hình Redis Cache cho IdentityServer (Lưu trữ các Grant, Token, v.v.)
         services.AddStackExchangeRedisCache(options =>
         {
@@ -20,9 +21,9 @@ public static class AuthenticationIdentityServer
             options.InstanceName = InstanceName;
         });
 
-        var builder = services.AddIdentityServer(options =>
+        services.AddIdentityServer(options =>
         {
-
+            options.IssuerUri = gatewayUrl;
             // --- CẤU HÌNH ĐƯỜNG DẪN LOGIN TẠI ĐÂY ---
             options.UserInteraction.LoginUrl = "/auth/dang-nhap-he-thong"; // Đường dẫn đến Controller/Page Login của bạn
             options.UserInteraction.LogoutUrl = "/auth/dang-xuat-he-thong";

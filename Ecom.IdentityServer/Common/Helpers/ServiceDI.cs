@@ -20,7 +20,7 @@ namespace Ecom.IdentityServer.Common.Helpers
             // 3. Cấu hình cho AuthService
             services.AddHttpClient<IAuthService, AuthService>(client =>
             {
-                client.BaseAddress = new Uri(configuration["IdentityCMSService:BaseUrl"] ?? string.Empty);
+                client.BaseAddress = new Uri(configuration["CustomerService:BaseUrl"] ?? string.Empty);
             })
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler // TẠO MỚI Ở ĐÂY
             {

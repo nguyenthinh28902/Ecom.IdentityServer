@@ -10,9 +10,9 @@ namespace Ecom.IdentityServer.Common.Helpers.Identity.Config
             {
                     // Resource mới dành riêng cho Customer Service
                     // 1. Identity/User Service Resource
-                new ApiResource("user.api", "Identity CMS Service API")
+                new ApiResource("customer.api", "Identity CMS Service API")
                 {
-                    Scopes = { "user.internal", "user.read", "user.write" },
+                    Scopes = { "customer.internal", "customer.read", "customer.write" },
                     // UserClaims giúp đính kèm thêm thông tin vào Access Token khi gọi API này
                     UserClaims = { "sub" },
                 },

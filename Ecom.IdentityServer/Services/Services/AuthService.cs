@@ -1,11 +1,11 @@
 ﻿using Duende.IdentityServer;
+using Ecom.IdentityServer.Common.Exceptions;
 using Ecom.IdentityServer.Models;
 using Ecom.IdentityServer.Models.DTOs.SignIn;
 using Ecom.IdentityServer.Models.Enums;
 using Ecom.IdentityServer.Models.Settings;
 using Ecom.IdentityServer.Models.ViewModels.Accounts;
 using Ecom.IdentityServer.Services.Interfaces;
-using EcommerceIdentityServerCMS.Common.Exceptions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Options;
@@ -24,6 +24,7 @@ namespace Ecom.IdentityServer.Services.Services
         private readonly JwtSettings _jwtSettings;
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly IDistributedCache _cache;
+        private readonly ServiceAuthOptions _idenityServiceAuthOptions;
 
         private readonly ILogger<AuthService> _logger;
         public AuthService(HttpClient httpClient,
@@ -31,7 +32,8 @@ namespace Ecom.IdentityServer.Services.Services
             IConfiguration configuration,
             ILogger<AuthService> logger, IOptions<JwtSettings> jwtSettings,
             IHttpContextAccessor httpContextAccessor,
-            IDistributedCache cache)
+            IDistributedCache cache,
+            IOptions<ServiceAuthOptions> options)
         {
             _configuration = configuration;
             _httpClient = httpClient;
@@ -40,11 +42,13 @@ namespace Ecom.IdentityServer.Services.Services
             _jwtSettings = jwtSettings.Value;
             _httpContextAccessor = httpContextAccessor;
             _cache = cache;
+            _idenityServiceAuthOptions = options.Value;
         }
 
         public async Task<SignInResponseDto?> AuthenticateInternal(SignInViewModel signInViewModel)
         {
-            var token = await _tokenService.GetSystemTokenAsync(ServiceAuth.APIGatewayCMSService.ToString());
+
+            var token = await _tokenService.GetSystemTokenAsync(_idenityServiceAuthOptions);
             _logger.LogInformation($"token {token.AccessToken}");
             if (token == null) throw new UnauthorizedException("Yêu cầu không được chấp nhận");
             _httpClient.DefaultRequestHeaders.Authorization =
@@ -56,44 +60,89 @@ namespace Ecom.IdentityServer.Services.Services
                 Password = signInViewModel.Password
             };
             var response = await _httpClient.PostAsJsonAsync(
-                   $"{_configuration["IdentityCMSService:BaseUrl"]}{ConfigApi.ApiAuthenticateInternal}",
+                   $"{_configuration["CustomerService:BaseUrl"]}{ConfigApi.ApiAuthenticateInternal}",
                    payload);
             response.EnsureSuccessStatusCode();
             var result = await response.Content.ReadFromJsonAsync<SignInResponseDto>();
             return result;
         }
 
+        public async Task<bool> AuthenticateInternal(UserInfoSinginDto userInfoSinginDto, string providerName)
+        {
+
+            var token = await _tokenService.GetSystemTokenAsync(_idenityServiceAuthOptions);
+            _logger.LogInformation($"check token AuthenticateInternal  {token.AccessToken}");
+            _httpClient.DefaultRequestHeaders.Authorization =
+                  new AuthenticationHeaderValue("Bearer", token.AccessToken);
+
+            var payload = new
+            {
+                Request = userInfoSinginDto,
+                ProviderName = providerName
+            };
+            try
+            {
+                var response = await _httpClient.PostAsJsonAsync(
+              $"{_configuration["CustomerService:BaseUrl"]}{ConfigApi.ApiValidateCustomerAuth}",
+              payload);
+                response.EnsureSuccessStatusCode();
+                var result = await response.Content.ReadFromJsonAsync<Result<SignInResponseDto?>>();
+                if (result == null || result.IsSuccess == false || result.Data == null)
+                {
+                    return false;
+                }
+                await SignInIdentityUserAsync(result.Data);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogInformation($"call api check thông tin khách hàng {userInfoSinginDto.Name} lỗi: {ex.Message}");
+                _logger.LogInformation($"Thông tin google: {JsonSerializer.Serialize(userInfoSinginDto)}");
+                return false;
+            }
+
+            return true;
+        }
+
+
+
         public async Task SignInIdentityUserAsync(SignInResponseDto user)
         {
+
             // 1. Chỉ giữ lại những Claim tối thiểu để định danh
             var claims = new List<Claim>
             {
-                new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-                new Claim(JwtRegisteredClaimNames.Email, user.Email ?? ""),
+                new Claim(JwtRegisteredClaimNames.Sub, user.CustomerId.ToString()),
             };
+
+            if (!string.IsNullOrEmpty(user.Email))
+            {
+                claims.Add(new Claim(JwtRegisteredClaimNames.Email, user.Email ?? ""));
+            }
+            if (!string.IsNullOrEmpty(user.PhoneNumber))
+            {
+                claims.Add(new Claim(JwtRegisteredClaimNames.PhoneNumber, user.PhoneNumber ?? ""));
+            }
 
             // 2. Đóng gói toàn bộ thông tin User thành JSON để lưu Cache
             // UserCacheModel là class chứa đầy đủ: Id, Roles, WorkplaceId, Permissions, v.v...
             var userCache = new UserCacheModel {
-                Id = user.Id,
+                Id = user.CustomerId,
                 Email = user.Email,
-                Roles = user.Roles,
-                WorkplaceId = user.WorkplaceId,
-                // Có thể thêm nhiều thông tin khác ở đây mà không sợ nặng Token
+                PhoneNumber = user.PhoneNumber,
             };
 
-            var cacheKey = $"user_info:{user.Id}"; // Phải khớp với Key mà Gateway sẽ đọc
+            var cacheKey = $"user_info:{user.CustomerId}"; // Phải khớp với Key mà Gateway sẽ đọc
             var jsonProvider = JsonSerializer.Serialize(userCache);
 
             // Lưu vào Redis (Set thời gian hết hạn bằng hoặc dài hơn Token một chút)
-            var hours = (int)ExpireTimeSpanSignIn.Medium;
+            var hours = (int)ExpireTimeSpanSignIn.Long;
             await _cache.SetStringAsync(cacheKey, jsonProvider, new DistributedCacheEntryOptions {
                 AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(hours)
             });
 
             // 3. Thực hiện SignIn với bộ Claim tối thiểu
-            var isUser = new IdentityServerUser(user.Id.ToString()) {
-                DisplayName = user.Id.ToString(),
+            var isUser = new IdentityServerUser(user.CustomerId.ToString()) {
+                DisplayName = user.CustomerId.ToString(),
                 AdditionalClaims = claims
             };
 
@@ -108,14 +157,13 @@ namespace Ecom.IdentityServer.Services.Services
             var appName = httpContext.Request.Headers["X-App-Name"].ToString();
             if (string.IsNullOrEmpty(appName))
                 throw new UnauthorizedException("Thiếu X-App-Name");
-
+            var serviceAuthOptions = BuildAuthOptions(exchangeRequest);
 
 
             // 🔥 Exchange authorization_code → access_token (IdentityServer)
             var token = await _tokenService.ExchangeAuthorizationCodeAsync(
-                appName,
-              exchangeRequest
-            );
+              exchangeRequest,
+              serviceAuthOptions);
 
             if (token == null || string.IsNullOrEmpty(token.AccessToken))
                 return Result<TokenResponseDto?>.Failure("Exchange token thất bại");
@@ -125,5 +173,31 @@ namespace Ecom.IdentityServer.Services.Services
                 "Thông tin token được cấp phát thành công"
             );
         }
+        public ServiceAuthOptions BuildAuthOptions(ExchangeRequest request)
+        {
+            var httpContext = _httpContextAccessor.HttpContext
+                ?? throw new UnauthorizedException("Không tìm thấy ngữ cảnh HTTP.");
+
+            // 1. Lấy thông tin từ Basic Auth Header
+            var (clientId, clientSecret) = BasicAuthHelper.GetCredentials(httpContext.Request);
+
+            // 2. Lấy thông tin từ Custom Header (như X-App-Name đã bàn trước đó) nếu cần mapping ServiceName
+            var serviceName = httpContext.Request.Headers["X-App-Name"].ToString();
+
+            // 3. Khởi tạo và trả về model ServiceAuthOptions
+            return new ServiceAuthOptions {
+                ServiceName = string.IsNullOrEmpty(serviceName) ? "UnknownService" : serviceName,
+                ClientId = clientId ?? string.Empty,
+                ClientSecret = clientSecret ?? string.Empty,
+                // Dữ liệu từ Body (ExchangeRequest)
+                GrantType = "authorization_code", // Mặc định cho luồng exchange code
+                Scope = "openid profile offline_access", // Bạn có thể bốc từ config hoặc DB dựa trên ClientId
+
+                /* Lưu ý: RedirectUri từ ExchangeRequest thường dùng để so khớp (Validation),
+                   không nằm trong model ServiceAuthOptions ban đầu của bạn nhưng rất quan trọng.
+                */
+            };
+        }
+
     }
 }

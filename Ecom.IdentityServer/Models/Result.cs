@@ -2,9 +2,10 @@
 {
     public class Result<T>
     {
-        public bool IsSuccess { get; }
-        public string? Error { get; }
-        public T? Data { get; }
+        public Result() { }
+        public bool IsSuccess { get; set; }
+        public string? Error { get; set; }
+        public T? Data { get; set; }
 
         protected Result(bool isSuccess, T? data, string? error)
         {

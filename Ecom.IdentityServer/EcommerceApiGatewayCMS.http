@@ -1,6 +1,6 @@
-@EcommerceIdentityServerCMS_HostAddress = http://localhost:5062
+@Ecom.IdentityServer_HostAddress = http://localhost:5062
 
-GET {{EcommerceIdentityServerCMS_HostAddress}}/weatherforecast/
+GET {{Ecom.IdentityServer_HostAddress}}/weatherforecast/
 Accept: application/json
 
 ###

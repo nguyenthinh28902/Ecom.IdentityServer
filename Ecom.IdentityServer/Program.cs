@@ -1,7 +1,10 @@
 ﻿using Ecom.IdentityServer.Common.Helpers;
 using Ecom.IdentityServer.Common.Helpers.Identity;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
+
+
 
 // Add services to the container.
 
@@ -20,7 +23,17 @@ builder.Services.AddAuthenticationExtensions(builder.Configuration);
 builder.Services.AddServiceDI(builder.Configuration);
 
 var app = builder.Build();
+// Trong app pipeline:
+app.UseForwardedHeaders(new ForwardedHeadersOptions {
+    ForwardedHeaders =
+        ForwardedHeaders.XForwardedFor |
+        ForwardedHeaders.XForwardedHost |
+        ForwardedHeaders.XForwardedProto,
 
+    // Cho phép Gateway
+    KnownNetworks = { },
+    KnownProxies = { }
+});
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -30,6 +43,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseStaticFiles(); // Thêm dòng này nếu có giao diện Login UI
+app.UseCookiePolicy();
 app.UseIdentityServer();
 app.UseAuthorization();
 
@@ -42,4 +56,5 @@ using (var scope = app.Services.CreateScope())
     var config = services.GetRequiredService<IConfiguration>();
     await DatabaseInitializer.InitDatabaseAsync(services, config);
 }
+
 app.Run();

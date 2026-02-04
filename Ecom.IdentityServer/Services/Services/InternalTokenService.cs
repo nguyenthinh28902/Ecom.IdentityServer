@@ -1,7 +1,7 @@
-﻿using Ecom.IdentityServer.Models.DTOs.SignIn;
+﻿using Ecom.IdentityServer.Common.Exceptions;
+using Ecom.IdentityServer.Models.DTOs.SignIn;
 using Ecom.IdentityServer.Models.Settings;
 using Ecom.IdentityServer.Services.Interfaces;
-using EcommerceIdentityServerCMS.Common.Exceptions;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
 
@@ -11,14 +11,14 @@ namespace Ecom.IdentityServer.Services.Services
     {
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
-        private readonly IDictionary<string, ServiceAuthOptions> _configs;
+        private readonly ServiceAuthOptions _configs;
         private readonly ILogger<InternalTokenService> _logger;
 
         public InternalTokenService(
             HttpClient httpClient,
             IConfiguration configuration,
             ILogger<InternalTokenService> logger,
-            IOptions<Dictionary<string, ServiceAuthOptions>> options)
+            IOptions<ServiceAuthOptions> options)
         {
             _httpClient = httpClient;
             _configuration = configuration;
@@ -30,27 +30,25 @@ namespace Ecom.IdentityServer.Services.Services
         // PUBLIC API
         // =========================
 
-        public Task<TokenResponseDto?> GetSystemTokenAsync(string serviceName)
+        public Task<TokenResponseDto?> GetSystemTokenAsync(ServiceAuthOptions cfg)
         {
-            return RequestTokenAsync(serviceName, null);
+            return RequestTokenAsync(null, cfg);
         }
 
         public Task<TokenResponseDto?> GetUserScopedTokenAsync(
-            string serviceName,
-            SignInResponseDto userContext)
+            SignInResponseDto userContext,
+            ServiceAuthOptions cfg)
         {
-            return RequestTokenAsync(serviceName, userContext);
+            return RequestTokenAsync(userContext, cfg);
         }
         public async Task<TokenResponseDto?> ExchangeAuthorizationCodeAsync(
-            string serviceName,
-            ExchangeRequest exchangeRequest
+            ExchangeRequest exchangeRequest,
+            ServiceAuthOptions cfg
             )
         {
             if (string.IsNullOrWhiteSpace(exchangeRequest.Code))
                 throw new UnauthorizedException("Thiếu authorization_code");
 
-            if (!_configs.TryGetValue(serviceName, out var cfg))
-                throw new UnauthorizedException($"Không có cấu hình OAuth cho {serviceName}");
 
             var form = new Dictionary<string, string> {
                 ["grant_type"] = "authorization_code",
@@ -73,7 +71,7 @@ namespace Ecom.IdentityServer.Services.Services
             {
                 _logger.LogError(ex,
                     "Failed to exchange authorization_code for service {Service}",
-                    serviceName);
+                    cfg.ClientId);
                 throw;
             }
 
@@ -82,7 +80,7 @@ namespace Ecom.IdentityServer.Services.Services
                 var error = await response.Content.ReadAsStringAsync();
                 _logger.LogWarning(
                     "Token endpoint rejected code for {Service}: {Error}",
-                    serviceName,
+                    cfg.ClientId,
                     error);
 
                 throw new UnauthorizedException("authorization_code không hợp lệ hoặc đã hết hạn");
@@ -107,14 +105,13 @@ namespace Ecom.IdentityServer.Services.Services
         // =========================
 
         private async Task<TokenResponseDto?> RequestTokenAsync(
-            string serviceName,
-            SignInResponseDto? userContext)
+            SignInResponseDto? userContext,
+            ServiceAuthOptions cfg)
         {
-            if (!_configs.TryGetValue(serviceName, out var cfg))
-                throw new InvalidOperationException($"No auth config for service: {serviceName}");
 
             var form = BuildTokenRequestForm(cfg, userContext);
-
+            _logger.LogInformation($"Request token login: {JsonSerializer.Serialize(cfg)}");
+            _logger.LogInformation($"from token login: {JsonSerializer.Serialize(form)}");
             HttpResponseMessage response;
             try
             {
@@ -124,7 +121,7 @@ namespace Ecom.IdentityServer.Services.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Token request failed for service {Service}", serviceName);
+                _logger.LogError(ex, "Token request failed for service {Service}", cfg.ClientId);
                 throw;
             }
 
@@ -133,7 +130,7 @@ namespace Ecom.IdentityServer.Services.Services
                 var error = await response.Content.ReadAsStringAsync();
                 _logger.LogWarning(
                     "Token endpoint rejected request for {Service}: {Error}",
-                    serviceName,
+                    cfg.ClientId,
                     error);
 
                 throw new ForbiddenException("Không có quyền truy cập service này");

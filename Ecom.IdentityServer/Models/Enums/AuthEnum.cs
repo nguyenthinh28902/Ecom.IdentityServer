@@ -1,8 +1,8 @@
-﻿namespace Ecom.IdentityServer.Models
+﻿namespace Ecom.IdentityServer.Models.Enums
 {
     public enum AuthEnum
     {
-        AllowNuxtCMS,
+        AllowEcomWeb,
         EcommerceIdentityCMS
     }
     public enum ClaimCustom

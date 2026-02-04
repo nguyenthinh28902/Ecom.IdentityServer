@@ -4,6 +4,7 @@ using Ecom.IdentityServer.Models.ViewModels.Accounts;
 using Ecom.IdentityServer.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 
 namespace Ecom.IdentityServer.Controllers
 {
@@ -13,10 +14,12 @@ namespace Ecom.IdentityServer.Controllers
     {
         private readonly IIdentityServerInteractionService _interaction;
         private readonly IAuthService _authService;
-        public AuthController(IAuthService authService, IIdentityServerInteractionService interaction)
+        private readonly ILogger<AuthController> _logger;
+        public AuthController(IAuthService authService, IIdentityServerInteractionService interaction, ILogger<AuthController> logger)
         {
             _authService = authService;
             _interaction = interaction;
+            _logger = logger;
         }
 
         [HttpPost("dang-nhap")]
@@ -38,9 +41,12 @@ namespace Ecom.IdentityServer.Controllers
             return Redirect(link);
         }
 
+
         [HttpPost("trao-doi-token")]
-        public async Task<IActionResult> Exchange([FromBody] ExchangeRequest request)
+        public async Task<IActionResult> Exchange([FromForm] ExchangeRequest request)
         {
+            _logger.LogInformation($"data client change token: {JsonSerializer.Serialize(request)}");
+
             var resultToken = await _authService.ExchangeCodeForExternalToken(request);
 
             return Ok(resultToken);

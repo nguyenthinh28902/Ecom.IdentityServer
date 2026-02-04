@@ -9,10 +9,10 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace EcommerceIdentityServerCMS.Migrations
+namespace Ecom.IdentityServer.Migrations.ConfigurationDb
 {
     [DbContext(typeof(ConfigurationDbContext))]
-    [Migration("20260130114836_InitialConfigurationDb")]
+    [Migration("20260202070921_InitialConfigurationDb")]
     partial class InitialConfigurationDb
     {
         /// <inheritdoc />

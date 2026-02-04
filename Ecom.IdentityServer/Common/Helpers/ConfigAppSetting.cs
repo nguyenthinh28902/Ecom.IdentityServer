@@ -1,4 +1,5 @@
-﻿using Ecom.IdentityServer.Models.Settings;
+﻿using Ecom.IdentityServer.Models.DTOs.SignIn;
+using Ecom.IdentityServer.Models.Settings;
 
 namespace Ecom.IdentityServer.Common.Helpers
 {
@@ -8,7 +9,11 @@ namespace Ecom.IdentityServer.Common.Helpers
         {
             services.Configure<JwtSettings>(
              configuration.GetSection("JwtSettings"));
-            services.Configure<Dictionary<string, ServiceAuthOptions>>(configuration.GetSection("ServiceAuth"));
+            services.Configure<GoogleAuthentication>(
+             configuration.GetSection("GoogleAuthentication"));
+
+            services.Configure<ServiceAuthOptions>(
+            configuration.GetSection("IdentityServerService"));
             return services;
         }
     }

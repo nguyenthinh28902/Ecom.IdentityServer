@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace EcommerceIdentityServerCMS.Migrations
+namespace Ecom.IdentityServer.Migrations.ConfigurationDb
 {
     /// <inheritdoc />
     public partial class InitialConfigurationDb : Migration
